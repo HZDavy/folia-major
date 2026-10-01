@@ -92,6 +92,7 @@ Thanks goes to these wonderful people. Issue reports, bug reports, ideas, docs, 
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/qingyueyin"><img src="https://avatars.githubusercontent.com/u/60309907?v=4?s=100" width="100px;" alt="轻月音"/><br /><sub><b>轻月音</b></sub></a><br /><a href="#ideas-qingyueyin" title="Ideas, Planning, & Feedback">🤔</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/linx3141"><img src="https://avatars.githubusercontent.com/u/198794512?v=4?s=100" width="100px;" alt="霖夕Linx"/><br /><sub><b>霖夕Linx</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3Alinx3141" title="Bug reports">🐛</a></td>
       <td align="center" valign="top" width="14.28%"><a href="https://github.com/HZDavy"><img src="https://avatars.githubusercontent.com/u/78797866?v=4?s=100" width="100px;" alt="HZDavy"/><br /><sub><b>HZDavy</b></sub></a><br /><a href="https://github.com/chthollyphile/folia-major/issues?q=author%3AHZDavy" title="Bug reports">🐛</a></td>
+      <td align="center" valign="top" width="14.28%"><a href="https://github.com/Timecube-6624"><img src="https://avatars.githubusercontent.com/u/215104219?v=4?s=100" width="100px;" alt="Timecube-6624"/><br /><sub><b>Timecube-6624</b></sub></a><br /><a href="#ideas-Timecube-6624" title="Ideas, Planning, & Feedback">🤔</a></td>
     </tr>
   </tbody>
 </table>
