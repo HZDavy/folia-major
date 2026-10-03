@@ -13,7 +13,7 @@ import type {
 import { OnlineProviderError } from '../../types/onlineMusic';
 import { createProviderSongMetadata } from '../../utils/songMetadata';
 import { toSafePlaybackUrl } from '../../utils/appPlaybackHelpers';
-import { fetchQQLyrics, searchQQLyrics } from '../../utils/lyrics/providers/qqLyricProvider';
+import { fetchQQLyrics, QQMusicApiError, searchQQSongs } from '../../utils/lyrics/providers/qqLyricProvider';
 import { writeProviderSessionValue } from './providerStorage';
 import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from './qqNormalize';
 import { clearQqSession, getQqTransportAvailability, hasQqSession, requestQq } from './qqTransport';
@@ -25,9 +25,30 @@ const errorFields = (error: unknown) => ({
     message: error instanceof Error ? error.message : String(error),
 });
 
+// 搜索失败必须以错误交给 Omni：歌词匹配那一侧把失败吞成 `[]`，若沿用到这里，
+// 上游风控（HTTP 200 + 子请求 2001 + `meta.is_filter`）在界面上就成了「没有结果」。
+const toQqSearchError = (error: unknown): OnlineProviderError => {
+    if (error instanceof OnlineProviderError) return error;
+    if (error instanceof QQMusicApiError && error.kind === 'rejected') {
+        return new OnlineProviderError(
+            'invalid-response',
+            `QQ search was rejected upstream (code ${error.upstreamCode}`
+            + `${error.isFilter !== undefined ? `, is_filter ${error.isFilter}` : ''})`,
+            'qq',
+            error,
+        );
+    }
+    return new OnlineProviderError('network', `QQ search request failed: ${errorFields(error).message}`, 'qq', error);
+};
+
 const searchSongs = async (query: string, limit: number, offset: number) => {
     // Reuses the QQ search that already backs lyric matching; only the provider contract is new.
-    const results = await searchQQLyrics(query, Math.floor(offset / Math.max(1, limit)) + 1, limit);
+    let results: SongResult[];
+    try {
+        results = await searchQQSongs(query, Math.floor(offset / Math.max(1, limit)) + 1, limit);
+    } catch (error) {
+        throw toQqSearchError(error);
+    }
     const items = results.map(normalizeQqSong);
     return { items, hasMore: items.length === limit, nextOffset: offset + items.length };
 };

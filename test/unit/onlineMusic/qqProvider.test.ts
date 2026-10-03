@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const requestMock = vi.hoisted(() => vi.fn());
 const clearSessionMock = vi.hoisted(() => vi.fn());
 const writeSessionValueMock = vi.hoisted(() => vi.fn());
-const searchQQLyricsMock = vi.hoisted(() => vi.fn());
+const searchQQSongsMock = vi.hoisted(() => vi.fn());
 const fetchQQLyricsMock = vi.hoisted(() => vi.fn());
 const transportState = vi.hoisted(() => ({ hasSession: true }));
 
@@ -20,14 +20,16 @@ vi.mock('@/services/onlineMusic/providerStorage', () => ({
     writeProviderSessionValue: writeSessionValueMock,
 }));
 
-vi.mock('@/utils/lyrics/providers/qqLyricProvider', () => ({
-    searchQQLyrics: searchQQLyricsMock,
+vi.mock('@/utils/lyrics/providers/qqLyricProvider', async importOriginal => ({
+    QQMusicApiError: (await importOriginal<typeof import('@/utils/lyrics/providers/qqLyricProvider')>()).QQMusicApiError,
+    searchQQSongs: searchQQSongsMock,
     fetchQQLyrics: fetchQQLyricsMock,
 }));
 
 import { qqProvider, resetQqProviderRuntimeCache } from '@/services/onlineMusic/qqProvider';
 import { normalizeQqCollection, normalizeQqSong, normalizeQqUser } from '@/services/onlineMusic/qqNormalize';
 import { OnlineProviderError } from '@/types/onlineMusic';
+import { QQMusicApiError } from '@/utils/lyrics/providers/qqLyricProvider';
 
 // Field shape of the verified `music.search.SearchCgiService` item consumed by the existing QQ search;
 // the identifiers are the public ones documented by the qq-music-api routes.
@@ -159,7 +161,7 @@ describe('qqProvider', () => {
         requestMock.mockReset();
         clearSessionMock.mockReset();
         writeSessionValueMock.mockReset();
-        searchQQLyricsMock.mockReset();
+        searchQQSongsMock.mockReset();
         fetchQQLyricsMock.mockReset();
         transportState.hasSession = true;
         resetQqProviderRuntimeCache();
@@ -508,7 +510,7 @@ describe('qqProvider', () => {
     });
 
     it('routes search and lyrics through the existing QQ modules', async () => {
-        searchQQLyricsMock.mockResolvedValue([{
+        searchQQSongsMock.mockResolvedValue([{
             id: 5105918,
             name: '海阔天空',
             artists: [{ id: 4558, name: 'Beyond' }],
@@ -519,7 +521,7 @@ describe('qqProvider', () => {
         fetchQQLyricsMock.mockResolvedValue({ lines: [], isWordByWord: true });
 
         const page = await qqProvider.search!.searchSongs('海阔天空', 20, 20);
-        expect(searchQQLyricsMock).toHaveBeenCalledWith('海阔天空', 2, 20);
+        expect(searchQQSongsMock).toHaveBeenCalledWith('海阔天空', 2, 20);
         expect(page).toMatchObject({ hasMore: false, nextOffset: 21 });
         expect(page.items[0]?.sourceRef).toMatchObject({ providerId: 'qq', mediaId: '003rJSwm3TechU' });
 
@@ -530,6 +532,31 @@ describe('qqProvider', () => {
             qqMid: '003rJSwm3TechU',
         }));
         expect(result).toEqual({ lyrics: { lines: [], isWordByWord: true }, isPureMusic: false });
+    });
+
+    // 上游风控时 HTTP 200、子请求 2001、`meta.is_filter: -12`。以前被吞成空数组，界面只显示「没有结果」。
+    it('surfaces an upstream search rejection instead of an empty page', async () => {
+        searchQQSongsMock.mockRejectedValue(new QQMusicApiError(
+            'QQ Music API error: code 2001 (is_filter -12)',
+            'rejected',
+            { upstreamCode: 2001, isFilter: -12 },
+        ));
+
+        const failure = await qqProvider.search!.searchSongs('海阔天空', 20, 0).catch(error => error);
+
+        expect(failure).toBeInstanceOf(OnlineProviderError);
+        expect(failure).toMatchObject({ code: 'invalid-response', providerId: 'qq' });
+        expect(failure.message).toContain('code 2001');
+        expect(failure.message).toContain('is_filter -12');
+    });
+
+    it('reports a failed search request as a network error', async () => {
+        searchQQSongsMock.mockRejectedValue(new TypeError('Failed to fetch'));
+
+        await expect(qqProvider.search!.searchSongs('海阔天空', 20, 0)).rejects.toMatchObject({
+            code: 'network',
+            providerId: 'qq',
+        });
     });
 
     it('resolves song detail and degrades authenticated playback quality until a URL exists', async () => {

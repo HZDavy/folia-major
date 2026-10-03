@@ -16,6 +16,28 @@ import { getOriginalCoverUrl } from '../../coverUrl';
 const isElectron = typeof window !== 'undefined' && (window as any).electron;
 
 /**
+ * A musicu request that failed: `http` is a non-2xx response, `rejected` is an HTTP 200 whose
+ * envelope or sub-request carried a non-zero code (e.g. 2001 with `meta.is_filter` under risk control).
+ */
+export class QQMusicApiError extends Error {
+  readonly status?: number;
+  readonly upstreamCode?: number;
+  readonly isFilter?: number;
+
+  constructor(
+    message: string,
+    public readonly kind: 'http' | 'rejected',
+    details: { status?: number; upstreamCode?: number; isFilter?: number } = {},
+  ) {
+    super(message);
+    this.name = 'QQMusicApiError';
+    this.status = details.status;
+    this.upstreamCode = details.upstreamCode;
+    this.isFilter = details.isFilter;
+  }
+}
+
+/**
  * Sends a POST request to u.y.qq.com via proxy or directly in Electron.
  */
 async function requestQQ(method: string, module: string, param: any): Promise<any> {
@@ -54,12 +76,20 @@ async function requestQQ(method: string, module: string, param: any): Promise<an
   });
 
   if (!response.ok) {
-    throw new Error(`QQ Music API request failed: ${response.status}`);
+    throw new QQMusicApiError(`QQ Music API request failed: ${response.status}`, 'http', { status: response.status });
   }
 
   const data = await response.json();
   if (data.code !== 0 || data.request?.code !== 0) {
-    throw new Error(`QQ Music API error: code ${data.code || data.request?.code}`);
+    const upstreamCode = Number(data.code || data.request?.code);
+    // 风控拒收时外层 code 仍是 0，只有子请求带 2001 和 `meta.is_filter`，把它留下来才分得清原因。
+    const rawFilter = data.request?.data?.meta?.is_filter;
+    const isFilter = rawFilter === undefined || rawFilter === null ? undefined : Number(rawFilter);
+    throw new QQMusicApiError(
+      `QQ Music API error: code ${upstreamCode}${isFilter !== undefined ? ` (is_filter ${isFilter})` : ''}`,
+      'rejected',
+      { upstreamCode, isFilter },
+    );
   }
 
   return data.request.data;
@@ -88,9 +118,10 @@ function detectIsQrc(content: string): boolean {
 }
 
 /**
- * Searches songs on QQ Music.
+ * Searches songs on QQ Music and lets request failures propagate, so callers can tell
+ * "upstream refused" apart from "no results".
  */
-export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
+export async function searchQQSongs(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
   const safeKeyword = keyword.trim();
   if (!safeKeyword) return [];
 
@@ -112,34 +143,42 @@ export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): 
     grp: 1,
   };
 
-  try {
-    const data = await requestQQ("DoSearchForQQMusicLite", "music.search.SearchCgiService", param);
-    const songs = data?.body?.item_song || [];
-    
-    return songs.map((info: any) => {
-      const artists = (info.singer || []).map((s: any, idx: number) => ({
-        id: s.id || idx,
-        name: s.name || 'Unknown Artist',
-      }));
-      
-      const albumMid = info.album?.mid;
-      const picUrl = albumMid
-        ? getOriginalCoverUrl(`https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg?max_age=2592000`)
-        : undefined;
+  const data = await requestQQ("DoSearchForQQMusicLite", "music.search.SearchCgiService", param);
+  const songs = data?.body?.item_song || [];
 
-      return {
-        id: Number(info.id || 0),
-        name: info.title || 'Unknown Song',
-        artists,
-        album: {
-          id: Number(info.album?.id || 0),
-          name: info.album?.name || 'Unknown Album',
-          coverUrl: picUrl,
-        },
-        durationMs: (info.interval || 0) * 1000,
-        qqMid: info.mid,
-      };
-    });
+  return songs.map((info: any) => {
+    const artists = (info.singer || []).map((s: any, idx: number) => ({
+      id: s.id || idx,
+      name: s.name || 'Unknown Artist',
+    }));
+
+    const albumMid = info.album?.mid;
+    const picUrl = albumMid
+      ? getOriginalCoverUrl(`https://y.gtimg.cn/music/photo_new/T002R300x300M000${albumMid}.jpg?max_age=2592000`)
+      : undefined;
+
+    return {
+      id: Number(info.id || 0),
+      name: info.title || 'Unknown Song',
+      artists,
+      album: {
+        id: Number(info.album?.id || 0),
+        name: info.album?.name || 'Unknown Album',
+        coverUrl: picUrl,
+      },
+      durationMs: (info.interval || 0) * 1000,
+      qqMid: info.mid,
+    };
+  });
+}
+
+/**
+ * Best-effort QQ search for lyric and metadata matching: a failure only drops this source,
+ * so it is logged and reported as no candidates.
+ */
+export async function searchQQLyrics(keyword: string, page = 1, pageSize = 20): Promise<SongResult[]> {
+  try {
+    return await searchQQSongs(keyword, page, pageSize);
   } catch (error) {
     console.error('[QQMusic] Search failed:', error);
     return [];
