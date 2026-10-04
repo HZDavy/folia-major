@@ -6,7 +6,7 @@ import { PlayerState } from '../types';
 import type { AudioBands, LyricData } from '../types';
 import { setCurrentLineIndex, setPlayerState } from '../stores/usePlaybackStore';
 import { selectDisplayLyrics, usePlaybackStore } from '../stores/usePlaybackStore';
-import { audioBands, audioPower, currentTime, lyricCurrentTime } from '../stores/motionSignals';
+import { audioBands, audioPower, currentTime, displayPlaybackRate, lyricCurrentTime } from '../stores/motionSignals';
 
 // src/hooks/usePlaybackVisualizerBridge.ts
 
@@ -130,6 +130,9 @@ export function usePlaybackVisualizerBridge({
             audioBands.spectrum?.set(new Uint8Array(0));
         }
 
+        // Publish the displayed deck's rate before its position, so video synchronization reads
+        // both from the same deck during a tempo bend or an Automix handover.
+        displayPlaybackRate.set(isActuallyPlaying && audioElement ? audioElement.playbackRate : 1);
         if (isActuallyPlaying && audioElement) {
             const time = audioElement.currentTime;
             currentTime.set(time);

@@ -68,6 +68,31 @@ In the panel:
 Filter choices persist across sessions. They persist as **what you muted**, so a module added to the
 app later shows up on its own rather than being silently filtered out by an old setting.
 
+## Video playback stalls
+
+Filter by module `VideoLayer` (or search `[VideoLayer]`). Diagnostics are active while the video
+layer is mounted. Each source mount has a `session` id and emits media events plus a summary every
+five seconds during playback. Copy the lines before and after a visible stall, including summaries.
+Video diagnostics print the payload as JSON text in the same console argument, so copying from
+DevTools preserves all fields instead of the collapsed object preview.
+
+| Event | Evidence |
+| --- | --- |
+| `script-seek` | The controller moved the video position; `reason`, `fromSec`, and `toSec` explain why. |
+| `rate-adjustment` / `ratechange` | Controller and browser speed changes; snapshots retain the latest change for comparison with a stall. |
+| `waiting` / `stalled` | Media readiness, buffered ranges, network state, and any media error at the event. |
+| `buffer-recovered` | Time spent waiting in `waitMs`; `bufferAheadSec` helps distinguish absent buffered data from decoding delays. |
+| `frame-gap` / `no-video-frames` | Late or absent compositor callbacks; decode time and callback delay help distinguish causes. A late callback alone does not prove the image stopped presenting. |
+| `main-thread-longtask` / `timer-gap` | A main-thread task of at least 100ms, or a delayed 500ms sampling timer. |
+| `clock-stalled` / `clock-jump` | The music clock stopped updating or advanced differently from elapsed time. |
+| `play-rejected` | The browser rejected a playback request, with its error name and message. |
+
+Snapshots include both playback positions and rates, the video phase error, frame/drop counts,
+visibility, and readiness. Repeated events are limited to one log per second; `eventCount` and
+`suppressedSincePrevious` preserve evidence of a burst. `scriptSeekCount` counts all controller seeks.
+URL query strings are omitted. The observer callbacks update local counters without React state or
+per-frame console output, and are removed when the layer unmounts.
+
 ## The pieces
 
 | File | Role |

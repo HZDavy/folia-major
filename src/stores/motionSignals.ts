@@ -30,6 +30,9 @@ export type AudioBandSignals = {
 /** Playback position of the deck the listener actually hears, in seconds. */
 export const currentTime = motionValue(0);
 
+/** Speed of the displayed deck, including Automix tempo bends; synthetic clocks run at 1x. */
+export const displayPlaybackRate = motionValue(1);
+
 /** The lyric clock. Separate from `currentTime`: it carries the per-song timeline offset. */
 export const lyricCurrentTime = motionValue(0);
 
