@@ -2,7 +2,7 @@ import { useEffect, useRef, type RefObject } from 'react';
 import { PlayerState } from '../types';
 import { currentTime, displayPlaybackRate } from '../stores/motionSignals';
 import { selectDisplayPlayerState, usePlaybackStore } from '../stores/usePlaybackStore';
-import { createVideoLayerPlayback, VIDEO_LAYER_SYNC_INTERVAL_MS } from '../services/videoLayerPlayback';
+import { createVideoLayerPlayback } from '../services/videoLayerPlayback';
 import { createVideoLayerDiagnostics } from '../services/videoLayerDiagnostics';
 
 // src/hooks/useVideoLayerPlayback.ts
@@ -34,20 +34,16 @@ export const useVideoLayerPlayback = (
         controllerRef.current = controller;
         const unsubscribeClock = currentTime.on('change', time => {
             diagnostics.onClockChange(time);
-            controller.onClockChange(time);
         });
-        const unsubscribeRate = displayPlaybackRate.on('change', controller.onRateChange);
         const unsubscribeStore = usePlaybackStore.subscribe((state, previous) => {
             if (selectDisplayPlayerState(state) !== selectDisplayPlayerState(previous)) controller.followState();
         });
         const timer = window.setInterval(() => {
             diagnostics.tick();
-            controller.tick();
-        }, VIDEO_LAYER_SYNC_INTERVAL_MS);
+        }, 500);
         return () => {
             window.clearInterval(timer);
             unsubscribeClock();
-            unsubscribeRate();
             unsubscribeStore();
             controller.dispose();
             diagnostics.dispose();

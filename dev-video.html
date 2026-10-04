@@ -1,0 +1,31 @@
+<!doctype html>
+<!-- dev-video.html: standalone native-video comparison, excluded from production entries. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>独立视频播放测试</title>
+  <link rel="stylesheet" href="/dev/video-test/page.css">
+</head>
+<body>
+  <main>
+    <h1>独立视频播放测试</h1>
+    <p>原生视频 · 1 倍速 · 静音循环 · 无音乐同步、歌词或背景动画</p>
+    <p>请选择同一个原始视频，保持本页在前台，并暂停其他页面的视频。先从头连续播放，重点观察 109～113 秒附近。</p>
+    <div class="controls">
+      <label>本地视频 <input id="file" type="file" accept="video/*"></label>
+      <form id="url-form"><label>视频链接 <input id="url" type="url" placeholder="https://…" required></label><button>加载链接</button></form>
+    </div>
+    <p id="source">尚未选择视频。本地文件仅在浏览器内播放。</p>
+    <video id="video" controls muted loop playsinline preload="auto" controlslist="noplaybackrate"></video>
+    <div class="controls">
+      <button id="play" type="button">播放</button><button id="pause" type="button">暂停</button>
+      <button id="download" type="button">导出日志</button>
+    </div>
+    <p>进度条可手动定位；手动拖动会产生 seeking 日志。页面不会自动跳转或追赶。换文件会开始新的诊断会话。</p>
+    <pre id="status" aria-live="off">等待加载</pre>
+    <details><summary>最近日志（最多显示 12 条，导出保留最近 2000 条）</summary><pre id="logs"></pre></details>
+  </main>
+  <script type="module" src="/dev/video-test/page.ts"></script>
+</body>
+</html>

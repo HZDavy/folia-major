@@ -5,9 +5,8 @@ import { useVideoLayerPlayback } from '../../../hooks/useVideoLayerPlayback';
 
 // src/components/visualizer/videoLayer/VideoLayer.tsx
 // Built-in muted video behind the lyrics (above the background, under the lyrics). The video follows
-// playback without any per-frame React work: play/pause follows the player state, a jump in the
-// playback clock (seek, song change) re-aligns it, and slow drift is corrected by gentle rate changes.
-// The video position is the song position modulo the video length, so a short loop keeps cycling.
+// playback without any per-frame React work: only play/pause follows the player state.
+// Temporary stall investigation: the video runs at native speed and loops independently of music.
 
 interface VideoLayerProps {
     /** The shell's pause signal (window hidden etc.); the video stops even while music plays. */

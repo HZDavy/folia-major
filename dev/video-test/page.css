@@ -1,0 +1,13 @@
+/* dev/video-test/page.css: quiet native-player layout without animation or GPU effects. */
+:root { color-scheme: dark; font: 15px/1.6 system-ui, sans-serif; background: #11151b; color: #dce5ef; }
+body { margin: 0; }
+main { max-width: 1100px; margin: 24px auto; padding: 0 20px 40px; }
+h1 { font-size: 25px; margin-bottom: 4px; }
+p { color: #abb9ca; }
+.controls, form { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+button, input { font: inherit; }
+button { padding: 7px 15px; border: 1px solid #526479; border-radius: 6px; background: #263344; color: inherit; cursor: pointer; }
+input[type=url] { width: min(45vw, 340px); padding: 7px; }
+video { display: block; width: 100%; max-height: 65vh; background: #000; margin: 16px 0; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #1a222d; padding: 14px; border-radius: 6px; }
+summary { cursor: pointer; }

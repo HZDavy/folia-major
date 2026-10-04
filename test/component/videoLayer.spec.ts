@@ -31,30 +31,31 @@ test('keeps decoding across loops and a tempo change without periodic script see
     // More than two complete loops, including a live Automix-style rate change.
     await page.waitForTimeout(4500);
     await page.getByRole('button', { name: 'Tempo 1.1x' }).click();
-    await expect.poll(() => video.evaluate((video: HTMLVideoElement) => video.playbackRate)).toBeCloseTo(1.1, 1);
+    await expect(video).toHaveJSProperty('playbackRate', 1);
     await page.waitForTimeout(4500);
     expect(await seeks()).toBe(baseline);
     expect(await video.evaluate((video: HTMLVideoElement) => video.getVideoPlaybackQuality().totalVideoFrames) - frames).toBeGreaterThan(150);
     await expect(video).toHaveJSProperty('paused', false);
 });
 
-test('pauses on a stopped music clock, recovers, and still follows an explicit seek', async ({ page }) => {
+test('keeps playing independently of a stopped music clock and explicit seek', async ({ page }) => {
     const video = page.locator('video');
     const seeks = () => page.evaluate(() => (window as unknown as { __videoLayerSeeks: number[] }).__videoLayerSeeks.length);
     const baseline = await seeks();
     await page.getByRole('button', { name: 'Stop clock' }).click();
-    await expect(video).toHaveJSProperty('paused', true);
     await page.waitForTimeout(2100);
+    await expect(video).toHaveJSProperty('paused', false);
     expect(await seeks()).toBe(baseline);
     await page.getByRole('button', { name: 'Resume clock' }).click();
     await expect(video).toHaveJSProperty('paused', false);
     const beforeSeek = await seeks();
     await page.getByRole('button', { name: 'Seek', exact: true }).click();
-    await expect.poll(seeks).toBe(beforeSeek + 1);
+    await page.waitForTimeout(600);
+    expect(await seeks()).toBe(beforeSeek);
     await expect(video).toHaveJSProperty('paused', false);
 });
 
-test('keeps a replacement source aligned and paused until playback resumes', async ({ page }) => {
+test('keeps a replacement source at the start and paused until playback resumes', async ({ page }) => {
     const video = page.locator('video');
     await page.evaluate(async () => {
         const playbackPath = '/src/stores/usePlaybackStore.ts';
@@ -70,14 +71,8 @@ test('keeps a replacement source aligned and paused until playback resumes', asy
     await expect(video).toHaveAttribute('src', /replacement$/);
     await expect.poll(() => video.evaluate((video: HTMLVideoElement) => video.readyState)).toBeGreaterThanOrEqual(2);
     await expect(video).toHaveJSProperty('paused', true);
-    await page.evaluate(async () => {
-        const signalsPath = '/src/stores/motionSignals.ts';
-        const { currentTime } = await import(signalsPath);
-        const video = document.querySelector('video')!;
-        // The newly loaded file's frame must still describe the paused song position.
-        const phaseError = Math.abs(video.currentTime - (currentTime.get() % video.duration));
-        if (phaseError > 0.1) throw new Error(`Paused replacement is out of sync: ${phaseError}`);
-    });
+    // The newly loaded file stays at its own start, independently of the paused song position.
+    await expect(video).toHaveJSProperty('currentTime', 0);
     await page.evaluate(async () => {
         const playbackPath = '/src/stores/usePlaybackStore.ts';
         const typesPath = '/src/types.ts';
