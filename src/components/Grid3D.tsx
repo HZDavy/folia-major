@@ -242,6 +242,38 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
 
     const [focusedIndex, setFocusedIndex] = useState(0);
     const gridRootRef = useRef<HTMLDivElement>(null);
+    // 上/下方向键导航的目标序列：先遍历可见可用的内容板块，「去哪儿」的队列拼贴
+    // （Lattice）作为最右目标追加在末尾，仅在有在播歌曲时出现（与胶囊列一致）。
+    const homeNavKeys = useMemo(() => {
+        const keys: string[] = [];
+        if (showHomeTabPlaylist && !playlistUnavailableReason) keys.push('playlist');
+        if (showHomeTabRadio && !radioUnavailableReason) keys.push('radio');
+        if (showHomeTabAlbums && !albumsUnavailableReason) keys.push('albums');
+        if (showHomeTabLocal && getLocalLibraryAvailability().supported) keys.push('local');
+        if (navidromeEnabled) keys.push('navidrome');
+        if (onOpenLattice && currentTrack) keys.push('lattice');
+        return keys;
+    }, [
+        showHomeTabPlaylist,
+        showHomeTabRadio,
+        showHomeTabAlbums,
+        showHomeTabLocal,
+        playlistUnavailableReason,
+        radioUnavailableReason,
+        albumsUnavailableReason,
+        navidromeEnabled,
+        onOpenLattice,
+        currentTrack,
+    ]);
+    // 上下键导航用的最新值缓存，保证 keydown 监听只绑定一次也能读到最新状态。
+    const updownNavRef = useRef({
+        homeViewTab,
+        keys: homeNavKeys,
+        focusActiveSlider: () => {},
+        openLattice: () => {},
+    });
+    updownNavRef.current.homeViewTab = homeViewTab;
+    updownNavRef.current.keys = homeNavKeys;
     const searchInputRef = useRef<HTMLInputElement>(null);
     const [isLocalImporting, setIsLocalImporting] = useState(false);
     const [isLocalPlaylistImporting, setIsLocalPlaylistImporting] = useState(false);
@@ -697,6 +729,51 @@ export const Grid3D: React.FC<Grid3DProps> = (props) => {
                 ?.focus({ preventScroll: true });
         });
     };
+    updownNavRef.current.focusActiveSlider = focusActiveSlider;
+    updownNavRef.current.openLattice = onOpenLattice ?? (() => {});
+
+    // 上/下方向键在可见可用的板块之间来回切换：上键往前、下键往后，到首尾边界后停在原地，
+    // 末尾碰到「去哪儿」队列拼贴（lattice）时直接打开 Lattice。切换后焦点回到内容位置。
+    // 输入框内不拦截方向键，避免影响光标移动。
+    // 与命令面板等共用 window keydown；仅当交互态首页时生效。监听只绑定一次，从 ref 读最新状态。
+    useEffect(() => {
+        if (!isInteractive) {
+            return;
+        }
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') {
+                return;
+            }
+            const target = event.target as HTMLElement | null;
+            if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+                return;
+            }
+            const { keys, homeViewTab: currentTab, focusActiveSlider: focus, openLattice } = updownNavRef.current;
+            if (keys.length === 0) {
+                return;
+            }
+            event.preventDefault();
+            const currentIdx = keys.indexOf(currentTab as any);
+            const step = event.key === 'ArrowUp' ? -1 : 1;
+            // 上键往前、下键往后，到首尾边界后不再循环（停在原地）。
+            const nextIdx = currentIdx === -1
+                ? (step === -1 ? keys.length - 1 : 0)
+                : Math.max(0, Math.min(keys.length - 1, currentIdx + step));
+            if (nextIdx === currentIdx) {
+                return;
+            }
+            const nextKey = keys[nextIdx];
+            // 目标是最右的「去哪儿」队列拼贴：直接打开 Lattice，而不是切换内容 tab。
+            if (nextKey === 'lattice') {
+                openLattice();
+                return;
+            }
+            setHomeViewTab(nextKey as any);
+            focus();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isInteractive, setHomeViewTab]);
 
     return (
         <div
